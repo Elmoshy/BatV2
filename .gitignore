@@ -1,0 +1,7 @@
+/v2ray
+/build
+/app/build
+*.keystore
+local.properties
+.gradle
+engine-version.txt

@@ -1,0 +1,79 @@
+name: Build APK
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Fetch engine module
+        run: bash ./scripts/fetch_v2ray.sh
+
+      - name: Show the engine version
+        run: |
+          {
+            echo "### Engine module"
+            echo '```'
+            cat engine-version.txt
+            echo '```'
+            echo "Put the commit in the file engine.ref to freeze this version."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Signing key
+        env:
+          KS: ${{ secrets.KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KS_KEYPASS: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "$KS" ]; then
+            keytool -genkeypair -keystore bat.keystore -alias bat -keyalg RSA -keysize 2048 \
+              -validity 10000 -storepass batbatbat -keypass batbatbat -dname "CN=BatV2"
+            echo "::warning::No signing secrets found, made a temporary key (updates will need an uninstall first)"
+            exit 0
+          fi
+          if [ -z "$KS_PASS" ]; then
+            echo "::error::KEYSTORE_B64 is set but KEYSTORE_PASSWORD is missing"
+            exit 1
+          fi
+          printf '%s' "$KS" | tr -d ' \r\n' | base64 -d > bat.keystore
+          STOREPASS="$(printf '%s' "$KS_PASS" | tr -d '\r\n')"
+          LIST="$(keytool -list -v -keystore bat.keystore -storepass "$STOREPASS" 2>&1 || true)"
+          # the alias is read from the keystore itself, no secret needed for it
+          ALIAS="$(printf '%s\n' "$LIST" | sed -n 's/^Alias name: //p' | head -n 1 | tr -d '\r')"
+          if [ -z "$ALIAS" ]; then
+            echo "::error::cannot read the keystore: wrong KEYSTORE_PASSWORD or the KEYSTORE_B64 text is broken"
+            printf '%s\n' "$LIST" | head -n 5
+            exit 1
+          fi
+          # PKCS12 keystores use the store password for the key as well
+          if printf '%s\n' "$LIST" | grep -qi "Keystore type: PKCS12"; then
+            KEYPASS="$STOREPASS"
+          else
+            KEYPASS="$(printf '%s' "${KS_KEYPASS:-$KS_PASS}" | tr -d '\r\n')"
+          fi
+          echo "Using the key with alias: $ALIAS"
+          echo "KEYSTORE_PASSWORD=$STOREPASS" >> "$GITHUB_ENV"
+          echo "KEY_ALIAS=$ALIAS" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=$KEYPASS" >> "$GITHUB_ENV"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build
+        run: gradle :app:assembleRelease --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BatV2-apk
+          path: |
+            app/build/outputs/apk/release/*.apk
+            engine-version.txt

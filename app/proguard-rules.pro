@@ -1,0 +1,3 @@
+-keep class libv2ray.** { *; }
+-keep class go.** { *; }
+-keep class dev.dev7.lib.v2ray.** { *; }
