@@ -129,6 +129,18 @@ fun main() {
     check("diagnose: format has all steps", Diagnose.format(d1).let { it.contains("[OK]") && it.contains("[FAIL]") && it.contains("Tunnel") })
     plain.close()
 
+
+    // ---- certificate verdicts
+    val certStep = listOf(Diagnose.Step("DNS", true, "x"), Diagnose.Step("TCP", true, "x"), Diagnose.Step("TLS", true, "x", true), Diagnose.Step("Tunnel", false, "closed pipe"))
+    check("verdict: expired or mismatching certificate is named", Diagnose.verdict(certStep).contains("expired or does not match"))
+    val goodCert = listOf(Diagnose.Step("DNS", true, "x"), Diagnose.Step("TCP", true, "x"), Diagnose.Step("TLS", true, "x", false), Diagnose.Step("Tunnel", false, "closed pipe"))
+    check("verdict: good certificate points to the proxy settings", Diagnose.verdict(goodCert).contains("proxy test fails"))
+    val fresh = CertFetcher.Info("a", "s", "i", "d", "TLSv1.3", "c", trusted = true, nameMatches = true, expired = false)
+    check("cert info: fine certificate is not bad", !fresh.bad)
+    check("cert info: expired is bad", CertFetcher.Info("a", "s", "i", "d", "p", "c", true, true, true).bad)
+    check("cert info: wrong name is bad", CertFetcher.Info("a", "s", "i", "d", "p", "c", true, false, false).bad)
+    check("cert info: unknown issuer is bad", CertFetcher.Info("a", "s", "i", "d", "p", "c", false, true, false).bad)
+
     println(if (failures == 0) "ALL OK" else "$failures FAILED")
     if (failures != 0) System.exit(1)
 }

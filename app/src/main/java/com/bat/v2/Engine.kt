@@ -32,7 +32,7 @@ object Engine {
 
     fun install(c: Context) { app = c.applicationContext }
 
-    fun init(a: AppCompatActivity) = V2rayController.init(a, R.drawable.ic_stat, "BatV2")
+    fun init(a: AppCompatActivity) = V2rayController.init(a, R.drawable.ic_stat, a.getString(R.string.app_name))
     fun coreVersion(): String = try { V2rayController.getCoreVersion() } catch (e: Throwable) { "?" }
     fun stop(c: Context) = V2rayController.stopV2ray(c)
 
@@ -145,17 +145,20 @@ object Engine {
         var err: String? = null
         try { delay = measure(cfg) } catch (e: Exception) { err = e.message ?: e.toString() }
 
-        if (err != null && s.autoPin && s.security == "tls" && s.vcn.isBlank() && certProblem(err)) {
+        // The core often reports a bad certificate only as "closed pipe", so look at the certificate itself.
+        if (err != null && s.autoPin && s.security == "tls" && s.vcn.isBlank()) {
             try {
-                val hash = CertFetcher.sha256(resolveIp(s.address) ?: s.address, s.port, s.sni.ifBlank { s.address })
-                s = s.copy(pin = hash)
-                store.upsert(s)
-                AppLog.add("${s.name}: certificate pinned ${hash.take(12)}")
-                cfg = buildConfig(s)
-                err = null
-                try { delay = measure(cfg) } catch (e: Exception) { err = e.message ?: e.toString() }
+                val info = CertFetcher.inspect(resolveIp(s.address) ?: s.address, s.port, s.sni.ifBlank { s.address })
+                if ((certProblem(err) || info.bad) && info.sha256 != s.pin) {
+                    AppLog.add("${s.name}: certificate " + (if (info.expired) "expired" else if (!info.nameMatches) "does not match the SNI" else "not trusted") + ", pinning " + info.sha256.take(12))
+                    s = s.copy(pin = info.sha256)
+                    store.upsert(s)
+                    cfg = buildConfig(s)
+                    err = null
+                    try { delay = measure(cfg) } catch (e: Exception) { err = e.message ?: e.toString() }
+                }
             } catch (e: Exception) {
-                err = "cannot read the server certificate: " + (e.message ?: e.toString())
+                AppLog.add("${s.name}: cannot read the server certificate: " + (e.message ?: e.toString()))
             }
         }
         if (err != null) AppLog.add("${s.name}: test failed: $err") else AppLog.add("${s.name}: $delay ms")

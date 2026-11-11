@@ -244,7 +244,7 @@ class MainActivity : AppCompatActivity() {
                 4 -> manageSubs()
                 5 -> pickBypassApps()
                 6 -> showSettings()
-                7 -> showText("About", "BatV2\ncore: ${Engine.coreVersion()}\n\nTrojan, VLESS, VMess and Shadowsocks over the xray core.")
+                7 -> showText("About", getString(R.string.app_name) + "\ncore: ${Engine.coreVersion()}\n\nTrojan, VLESS, VMess and Shadowsocks over the xray core.")
             }
             true
         }

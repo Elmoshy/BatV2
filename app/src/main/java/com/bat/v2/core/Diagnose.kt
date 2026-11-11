@@ -8,7 +8,7 @@ import java.net.Socket
 /** Step by step connection check: where exactly does it break (DNS, TCP, TLS or the proxy itself). */
 object Diagnose {
 
-    class Step(val name: String, val ok: Boolean?, val detail: String)
+    class Step(val name: String, val ok: Boolean?, val detail: String, val certBad: Boolean = false)
 
     /** @param tunnel runs the real proxy test, returns (worked, text) */
     fun run(s: Server, tunnel: () -> Pair<Boolean, String>): List<Step> {
@@ -53,11 +53,11 @@ object Diagnose {
                 sb.append("handshake ok  (${System.currentTimeMillis() - t2} ms)  ${i.protocol}\n")
                 sb.append("certificate: ${i.subject}\n")
                 sb.append("issuer: ${i.issuer}\n")
-                sb.append("expires: ${i.notAfter}\n")
+                sb.append("expires: ${i.notAfter}${if (i.expired) "   << EXPIRED" else ""}\n")
                 sb.append("valid for \"$name\": ${if (i.nameMatches) "yes" else "NO"}\n")
                 sb.append("trusted by the phone: ${if (i.trusted) "yes" else "NO"}\n")
                 sb.append("sha256: ${i.sha256}")
-                steps.add(Step("TLS", true, sb.toString()))
+                steps.add(Step("TLS", true, sb.toString(), i.bad))
             } catch (e: Exception) {
                 steps.add(Step("TLS", false, "handshake failed: " + (e.message ?: e.toString())))
             }
@@ -78,6 +78,8 @@ object Diagnose {
     fun verdict(steps: List<Step>): String {
         fun st(n: String) = steps.firstOrNull { it.name == n }
         return when {
+            st("TLS")?.certBad == true && st("Tunnel")?.ok == false ->
+                "The server certificate is expired or does not match the SNI so the core refuses it. Keep the auto pin switch on in the edit screen and press Power again: the app pins the certificate by itself."
             st("DNS")?.ok == false -> "The server name can not be resolved on this network."
             st("TCP")?.ok == false -> "The server port is not reachable: blocked by the network, wrong port or the server is down."
             st("TLS")?.ok == false && st("Tunnel")?.ok != true ->

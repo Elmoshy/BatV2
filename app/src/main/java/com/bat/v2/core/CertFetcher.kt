@@ -19,8 +19,12 @@ object CertFetcher {
 
     class Info(
         val sha256: String, val subject: String, val issuer: String, val notAfter: String,
-        val protocol: String, val cipher: String, val trusted: Boolean, val nameMatches: Boolean
-    )
+        val protocol: String, val cipher: String, val trusted: Boolean, val nameMatches: Boolean,
+        val expired: Boolean = false
+    ) {
+        /** the normal certificate check of the core would refuse this server (expired, wrong name or unknown issuer) */
+        val bad: Boolean get() = expired || !trusted || !nameMatches
+    }
 
     fun sha256(host: String, port: Int, sni: String, timeoutMs: Int = 6000): String =
         inspect(host, port, sni, timeoutMs).sha256
@@ -47,7 +51,8 @@ object CertFetcher {
             val sha = MessageDigest.getInstance("SHA-256").digest(leaf.encoded).joinToString("") { "%02x".format(it) }
             return Info(
                 sha, leaf.subjectX500Principal.name, leaf.issuerX500Principal.name, leaf.notAfter.toString(),
-                session.protocol, session.cipherSuite, systemTrusts(chain), nameMatches(leaf, name)
+                session.protocol, session.cipherSuite, systemTrusts(chain), nameMatches(leaf, name),
+                leaf.notAfter.before(java.util.Date())
             )
         } finally {
             try { sock.close() } catch (e: Exception) {}
