@@ -138,27 +138,43 @@ object Engine {
      * (fake SNI, renewed certificate), pin the certificate the server presents and test again. No dialogs.
      * Throws only for config errors. Call off the main thread.
      */
+    /** pins the certificate the server presents when the normal check would refuse it (or when forced) */
+    private fun pinIfBad(store: Store, s: Server, force: Boolean): Server {
+        return try {
+            val info = CertFetcher.inspect(resolveIp(s.address) ?: s.address, s.port, s.sni.ifBlank { s.address })
+            if ((force || info.bad) && info.sha256 != s.pin) {
+                val why = if (info.expired) "expired" else if (!info.nameMatches) "does not match the SNI" else if (!info.trusted) "not trusted" else "changed"
+                AppLog.add("${s.name}: certificate $why, pinning ${info.sha256.take(12)}")
+                val ns = s.copy(pin = info.sha256)
+                store.upsert(ns)
+                ns
+            } else s
+        } catch (e: Exception) {
+            AppLog.add("${s.name}: cannot read the server certificate: " + (e.message ?: e.toString()))
+            s
+        }
+    }
+
     fun prepare(store: Store, s0: Server): Prepared {
         var s = s0
+        val autoPin = (s.autoPin || Prefs.autoPin) && s.security == "tls" && s.vcn.isBlank()
+        // Look at the certificate before the first test: the core refuses a fake SNI or an expired
+        // certificate with a vague "closed pipe" and wastes several slow attempts.
+        if (autoPin && s.pin.isBlank()) s = pinIfBad(store, s, false)
+
         var cfg = buildConfig(s)
         var delay = -1L
         var err: String? = null
         try { delay = measure(cfg) } catch (e: Exception) { err = e.message ?: e.toString() }
 
-        // The core often reports a bad certificate only as "closed pipe", so look at the certificate itself.
-        if (err != null && s.autoPin && s.security == "tls" && s.vcn.isBlank()) {
-            try {
-                val info = CertFetcher.inspect(resolveIp(s.address) ?: s.address, s.port, s.sni.ifBlank { s.address })
-                if ((certProblem(err) || info.bad) && info.sha256 != s.pin) {
-                    AppLog.add("${s.name}: certificate " + (if (info.expired) "expired" else if (!info.nameMatches) "does not match the SNI" else "not trusted") + ", pinning " + info.sha256.take(12))
-                    s = s.copy(pin = info.sha256)
-                    store.upsert(s)
-                    cfg = buildConfig(s)
-                    err = null
-                    try { delay = measure(cfg) } catch (e: Exception) { err = e.message ?: e.toString() }
-                }
-            } catch (e: Exception) {
-                AppLog.add("${s.name}: cannot read the server certificate: " + (e.message ?: e.toString()))
+        // the server may have renewed its certificate since we pinned it
+        if (err != null && autoPin) {
+            val ns = pinIfBad(store, s, certProblem(err))
+            if (ns !== s) {
+                s = ns
+                cfg = buildConfig(s)
+                err = null
+                try { delay = measure(cfg) } catch (e: Exception) { err = e.message ?: e.toString() }
             }
         }
         if (err != null) AppLog.add("${s.name}: test failed: $err") else AppLog.add("${s.name}: $delay ms")

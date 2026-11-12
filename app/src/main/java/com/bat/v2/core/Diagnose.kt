@@ -79,7 +79,7 @@ object Diagnose {
         fun st(n: String) = steps.firstOrNull { it.name == n }
         return when {
             st("TLS")?.certBad == true && st("Tunnel")?.ok == false ->
-                "The server certificate is expired or does not match the SNI so the core refuses it. Keep the auto pin switch on in the edit screen and press Power again: the app pins the certificate by itself."
+                "The server certificate is expired or does not match the SNI so the core refuses it. Turn on the certificate auto trust in Settings (it is on by default) and press Power again: the app pins the certificate by itself."
             st("DNS")?.ok == false -> "The server name can not be resolved on this network."
             st("TCP")?.ok == false -> "The server port is not reachable: blocked by the network, wrong port or the server is down."
             st("TLS")?.ok == false && st("Tunnel")?.ok != true ->

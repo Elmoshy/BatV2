@@ -53,6 +53,7 @@ fun main() {
     val vmJson = """{"v":"2","ps":"vm","add":"vm.example.com","port":"443","id":"uuid-1","aid":"0","scy":"auto","net":"ws","type":"none","host":"vm.example.com","path":"/p","tls":"tls","sni":"vm.example.com"}"""
     val b = java.util.Base64.getEncoder().encodeToString(vmJson.toByteArray())
     val vm = LinkParser.parseOne("vmess://$b")
+    check("vmess over tls gets the auto pin flag", vm.autoPin)
     check("vmess", vm.protocol == "vmess" && vm.address == "vm.example.com" && vm.port == 443 && vm.network == "ws" && vm.security == "tls" && vm.name == "vm")
 
     val cred = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString("aes-256-gcm:pw".toByteArray())
@@ -132,7 +133,7 @@ fun main() {
 
     // ---- certificate verdicts
     val certStep = listOf(Diagnose.Step("DNS", true, "x"), Diagnose.Step("TCP", true, "x"), Diagnose.Step("TLS", true, "x", true), Diagnose.Step("Tunnel", false, "closed pipe"))
-    check("verdict: expired or mismatching certificate is named", Diagnose.verdict(certStep).contains("expired or does not match"))
+    check("verdict: expired or mismatching certificate is named", Diagnose.verdict(certStep).contains("expired or does not match") && Diagnose.verdict(certStep).contains("Settings"))
     val goodCert = listOf(Diagnose.Step("DNS", true, "x"), Diagnose.Step("TCP", true, "x"), Diagnose.Step("TLS", true, "x", false), Diagnose.Step("Tunnel", false, "closed pipe"))
     check("verdict: good certificate points to the proxy settings", Diagnose.verdict(goodCert).contains("proxy test fails"))
     val fresh = CertFetcher.Info("a", "s", "i", "d", "TLSv1.3", "c", trusted = true, nameMatches = true, expired = false)

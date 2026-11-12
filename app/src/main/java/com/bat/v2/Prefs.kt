@@ -16,6 +16,14 @@ object Prefs {
         get() = sp().getBoolean("autoFailover", true)
         set(v) { sp().edit().putBoolean("autoFailover", v).apply() }
 
+    /**
+     * When the server certificate fails the normal check (fake SNI, expired, wrong name) the app pins the
+     * certificate the server really presents and carries on. On by default, same behaviour as the other apps.
+     */
+    var autoPin: Boolean
+        get() = sp().getBoolean("autoPin", true)
+        set(v) { sp().edit().putBoolean("autoPin", v).apply() }
+
     /** core log level info instead of warning */
     var detailedLog: Boolean
         get() = sp().getBoolean("detailedLog", false)

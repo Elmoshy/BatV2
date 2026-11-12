@@ -280,13 +280,14 @@ class MainActivity : AppCompatActivity() {
         val labels = arrayOf(
             "Restart the tunnel automatically when it stops working",
             "Switch to the best other server when restarting does not help",
-            "Detailed core log (uses more battery)"
+            "Detailed core log (uses more battery)",
+            "Trust the server certificate automatically when the normal check fails (fake SNI or expired certificate)"
         )
-        val checked = booleanArrayOf(Prefs.autoReconnect, Prefs.autoFailover, Prefs.detailedLog)
+        val checked = booleanArrayOf(Prefs.autoReconnect, Prefs.autoFailover, Prefs.detailedLog, Prefs.autoPin)
         AlertDialog.Builder(this).setTitle("Settings")
             .setMultiChoiceItems(labels, checked) { _, i, v -> checked[i] = v }
             .setPositiveButton("Save") { _, _ ->
-                Prefs.autoReconnect = checked[0]; Prefs.autoFailover = checked[1]; Prefs.detailedLog = checked[2]
+                Prefs.autoReconnect = checked[0]; Prefs.autoFailover = checked[1]; Prefs.detailedLog = checked[2]; Prefs.autoPin = checked[3]
                 toast("Saved. The log level applies at the next connect")
             }.setNegativeButton("Cancel", null).show()
     }

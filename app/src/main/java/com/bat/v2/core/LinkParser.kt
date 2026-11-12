@@ -73,7 +73,8 @@ object LinkParser {
             method = s("scy").ifBlank { "auto" }, alterId = s("aid").toIntOrNull() ?: 0,
             network = s("net").ifBlank { "tcp" }.lowercase(), headerType = s("type").ifBlank { "none" },
             host = s("host"), path = s("path"),
-            security = if (tls) "tls" else "none", sni = s("sni"), fp = s("fp").ifBlank { "chrome" }, alpn = s("alpn")
+            security = if (tls) "tls" else "none", sni = s("sni"), fp = s("fp").ifBlank { "chrome" }, alpn = s("alpn"),
+            autoPin = tls
         )
     }
 
